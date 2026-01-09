@@ -1,6 +1,6 @@
 const socket = io();
 
-// --- AUDIO SYSTEM (Copied from tetris.js) ---
+// --- AUDIO SYSTEM ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -84,10 +84,10 @@ const player = {
     next: null,
     hold: null,
     score: 0,
-    arena: createMatrix(12, 24), // Taller arena for VS
+    arena: createMatrix(12, 24),
 };
 
-// Opponent State (Visual Only)
+// Opponent State
 const opponent = {
     matrix: null,
     pos: {x: 0, y: 0},
@@ -183,7 +183,6 @@ function drawGhost(ctx, arena, playerMatrix, playerPos) {
 
 // Draw Local Player
 function draw() {
-    // Clear
     context.fillStyle = '#020617';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -194,13 +193,18 @@ function draw() {
     drawParticles(context);
 }
 
-// Draw Remote Opponent
+// Draw Remote Opponent (NOW WITH GHOST IMPLEMENTED)
 function drawRemote() {
     remoteContext.fillStyle = '#020617';
     remoteContext.fillRect(0, 0, remoteCanvas.width, remoteCanvas.height);
     
     drawMatrix(remoteContext, opponent.arena, {x:0, y:0});
+    
     if (opponent.matrix) {
+        // --- ADDED GHOST LOGIC HERE ---
+        // Uses the same helper function as the player
+        drawGhost(remoteContext, opponent.arena, opponent.matrix, opponent.pos);
+        
         drawMatrix(remoteContext, opponent.matrix, opponent.pos);
     }
 }
@@ -411,10 +415,7 @@ function arenaSweep() {
         player.score += rowCount * 100;
         scoreElement.innerText = player.score;
         
-        // GARBAGE ATTACK!
-        // If 2 lines -> Send 1 garbage
-        // If 3 lines -> Send 2 garbage
-        // If 4 lines -> Send 3 garbage
+        // GARBAGE ATTACK logic
         if (rowCount > 1) {
             socket.emit('send_garbage', { room: roomID, lines: rowCount - 1 });
         }
