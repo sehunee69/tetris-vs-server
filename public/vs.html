@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetris VS Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/socket.io/socket.io.js"></script> <style>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
         body {
             background-image: url('https://media1.tenor.com/m/Ul0s5b88xPMAAAAC/sakuma.gif');
             background-size: cover;
@@ -17,22 +18,20 @@
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background-color: rgba(0, 0, 0, 0.85); z-index: -1;
         }
-        canvas { display: block; }
-        /* Greyed out Waiting UI */
-        #waiting-screen {
+        /* Glass effect for panels */
+        .glass-panel {
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(4px);
+            border: 2px solid rgba(55, 65, 81, 1);
+        }
+        #waiting-screen, #countdown-screen, #result-screen {
             position: absolute; inset: 0; z-index: 50;
-            background: rgba(20, 20, 20, 0.95);
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
         }
-        /* Countdown UI */
-        #countdown-screen {
-            position: absolute; inset: 0; z-index: 40;
-            background: rgba(0, 0, 0, 0.6);
-            display: none;
-            align-items: center; justify-content: center;
-        }
-        .animate-pulse-fast { animation: pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        #waiting-screen { background: rgba(20, 20, 20, 0.95); }
+        #countdown-screen { background: rgba(0, 0, 0, 0.6); display: none; }
+        #result-screen { background: rgba(0, 0, 0, 0.9); display: none; }
     </style>
 </head>
 <body class="text-white font-mono h-screen w-screen flex flex-col items-center justify-center">
@@ -49,29 +48,48 @@
         <h1 id="countdown-text" class="text-9xl font-black text-yellow-400 drop-shadow-lg scale-150">3</h1>
     </div>
 
-    <div id="result-screen" class="hidden absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center">
-        <h1 id="result-title" class="text-6xl font-bold mb-4">YOU WIN!</h1>
-        <button onclick="window.location.reload()" class="bg-blue-600 px-6 py-3 rounded text-xl font-bold hover:bg-blue-500 transition">Find New Match</button>
+    <div id="result-screen">
+        <h1 id="result-title" class="text-6xl font-bold mb-4">GAME OVER</h1>
+        <button onclick="window.location.reload()" class="bg-blue-600 px-6 py-3 rounded text-xl font-bold hover:bg-blue-500 transition shadow-lg">Find New Match</button>
     </div>
 
-    <div class="flex flex-row gap-12 items-end">
+    <div class="flex flex-row gap-8 items-end scale-90 md:scale-100">
         
-        <div class="flex flex-col items-center gap-2">
-            <h2 class="text-blue-400 font-bold tracking-widest text-xl">YOU</h2>
-            <div class="relative border-4 border-blue-600 rounded-lg shadow-2xl bg-gray-900">
-                <canvas id="local" width="300" height="600"></canvas>
+        <div class="flex flex-row gap-4 items-start">
+            
+            <div class="flex flex-col gap-4 w-24">
+                <div class="glass-panel p-2 rounded-lg flex flex-col items-center">
+                    <span class="text-gray-400 text-xs mb-1">HOLD</span>
+                    <canvas id="hold" width="80" height="80" class="bg-gray-900 rounded"></canvas>
+                </div>
+                <div class="glass-panel p-2 rounded-lg text-center">
+                    <span class="text-gray-400 text-xs">SCORE</span>
+                    <div id="score" class="text-xl font-bold text-green-400">0</div>
+                </div>
             </div>
-            <div class="text-2xl font-bold" id="score">0</div>
+
+            <div class="flex flex-col items-center gap-2">
+                <h2 class="text-blue-400 font-bold tracking-widest text-xl">YOU</h2>
+                <div class="relative border-4 border-blue-600 rounded-lg shadow-2xl bg-gray-950">
+                    <canvas id="local" width="300" height="600"></canvas>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-4 w-24">
+                <div class="glass-panel p-2 rounded-lg flex flex-col items-center">
+                    <span class="text-gray-400 text-xs mb-1">NEXT</span>
+                    <canvas id="next" width="80" height="80" class="bg-gray-900 rounded"></canvas>
+                </div>
+            </div>
         </div>
 
-        <div class="mb-60 text-6xl font-black italic text-gray-600 opacity-50">VS</div>
+        <div class="mb-64 text-6xl font-black italic text-gray-600 opacity-50 mx-4">VS</div>
 
         <div class="flex flex-col items-center gap-2">
-            <h2 class="text-red-500 font-bold tracking-widest text-xl">OPPONENT</h2>
-            <div class="relative border-4 border-red-600 rounded-lg shadow-2xl bg-gray-900 opacity-90">
+            <h2 class="text-red-500 font-bold tracking-widest text-xl">ENEMY</h2>
+            <div class="relative border-4 border-red-600 rounded-lg shadow-2xl bg-gray-950 opacity-90">
                 <canvas id="remote" width="300" height="600"></canvas>
             </div>
-            <div class="text-xl text-gray-500 font-bold">???</div>
         </div>
 
     </div>
