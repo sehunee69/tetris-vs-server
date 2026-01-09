@@ -74,6 +74,11 @@ let isPaused = false;
 let dropCounter = 0;
 let dropInterval = 1000;
 let lastTime = 0;
+
+// Difficulty Variables
+let difficultyTimer = 0;
+const difficultyInterval = 30000; // 30 Seconds
+
 let particles = [];
 let piecesBag = [];
 let canHold = true;
@@ -193,7 +198,7 @@ function draw() {
     drawParticles(context);
 }
 
-// Draw Remote Opponent (NOW WITH GHOST IMPLEMENTED)
+// Draw Remote Opponent (NOW WITH GHOST & CONSISTENT STYLE)
 function drawRemote() {
     remoteContext.fillStyle = '#020617';
     remoteContext.fillRect(0, 0, remoteCanvas.width, remoteCanvas.height);
@@ -201,10 +206,8 @@ function drawRemote() {
     drawMatrix(remoteContext, opponent.arena, {x:0, y:0});
     
     if (opponent.matrix) {
-        // --- ADDED GHOST LOGIC HERE ---
-        // Uses the same helper function as the player
+        // Show opponent ghost so it matches local player design
         drawGhost(remoteContext, opponent.arena, opponent.matrix, opponent.pos);
-        
         drawMatrix(remoteContext, opponent.matrix, opponent.pos);
     }
 }
@@ -248,10 +251,10 @@ socket.on('opponent_update', (state) => {
 });
 
 socket.on('receive_garbage', (count) => {
-    // Add grey lines at bottom
+    // Add grey lines at bottom with randomized holes
     for(let i=0; i<count; i++){
         const row = new Array(12).fill(8); // 8 = Grey
-        row[Math.floor(Math.random()*12)] = 0; // One hole
+        row[Math.floor(Math.random()*12)] = 0; // One random hole for digging
         player.arena.push(row);
         player.arena.shift(); // Push top off
     }
@@ -304,6 +307,10 @@ function startGame() {
     canHold = true;
     piecesBag = [];
     particles = [];
+    
+    // RESET DIFFICULTY
+    dropInterval = 1000;
+    difficultyTimer = 0;
     
     player.next = getPieceFromBag();
     playerReset();
@@ -466,14 +473,23 @@ function update(time = 0) {
 
     const deltaTime = time - lastTime;
     lastTime = time;
+    
     dropCounter += deltaTime;
+    difficultyTimer += deltaTime;
+
+    // --- DIFFICULTY LOGIC (Speeds up every 30s) ---
+    if (difficultyTimer > difficultyInterval) {
+        difficultyTimer = 0;
+        dropInterval = dropInterval * 0.9; // 10% Faster
+        if (dropInterval < 100) dropInterval = 100; // Cap max speed
+    }
 
     if (dropCounter > dropInterval) {
         playerDrop();
     }
     
     updateParticles();
-    draw(); // Draw local
+    draw(); 
     // Note: drawRemote is called via socket event
 
     requestAnimationFrame(update);
