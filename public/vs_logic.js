@@ -329,14 +329,17 @@ function playerReset() {
     drawPreview();
     
     if (collide(player.arena, player)) {
-        endGame(false); // You Lose
+        endGame(false); // Lose
     }
     emitState();
 }
 
 function endGame(win) {
     gameActive = false;
-    socket.emit('player_game_over', { room: roomID }); // Tell server
+
+    if(!win) {
+        socket.emit('player_game_over', { room: roomID }); 
+    }
     
     resultTitle.innerText = win ? "YOU WIN!" : "YOU LOSE";
     resultTitle.className = win ? "text-6xl font-bold mb-4 text-green-500" : "text-6xl font-bold mb-4 text-red-500";

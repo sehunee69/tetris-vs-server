@@ -6,15 +6,13 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// --- START OF FIX ---
-// We must tell the server to allow connections from "dcism.org" (or anywhere)
 const io = new Server(server, {
     cors: {
-        origin: "*",  // This is the magic key. It allows ANY website to connect.
+        origin: "*",  
         methods: ["GET", "POST"]
     }
 });
-// --- END OF FIX ---
+
 
 // Serve static files from the "public" folder
 app.use(express.static(path.join(__dirname, 'public')));
