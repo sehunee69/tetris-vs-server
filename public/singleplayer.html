@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tailwind Tetris</title>
+    <title>VSTetris</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .flash { animation: flash 0.2s; }
@@ -12,16 +12,16 @@
             100% { background-color: inherit; }
         }
 
-        /* 1. LAYER ONE: THE GIF BACKGROUND */
+        
         #bg-video {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            z-index: -2; /* Puts it at the very back */
+            z-index: -2; 
             
-            /* The GIF URL */
+            
             background-image: url('https://media1.tenor.com/m/Ul0s5b88xPMAAAAC/sakuma.gif');
             
             background-size: cover;
