@@ -50,61 +50,51 @@ let isPaused = false;
 let animationId = null;
 let canHold = true;
 
-// --- NEW: SOUND SYNTHESIZER SYSTEM ---
-// This generates sounds using code so you don't need mp3 files
+// --- NEW: LOCK DELAY VARIABLES ---
+let lockTimer = 0;
+const lockLimit = 500; // 0.5 seconds to slide before locking
+
+// --- SOUND SYNTHESIZER SYSTEM ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playSound(type) {
-    // Resume context if browser suspended it (common browser policy)
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
-
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-
     const now = audioCtx.currentTime;
 
     if (type === 'drop') {
-        // Low thud for placing a block
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(200, now);
         osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
-        
         gain.gain.setValueAtTime(0.5, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-        
         osc.start(now);
         osc.stop(now + 0.1);
     } 
     else if (type === 'clear') {
-        // High pitched "Coin" sound for clearing lines
         osc.type = 'square';
         osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-        
         gain.gain.setValueAtTime(0.15, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-        
         osc.start(now);
         osc.stop(now + 0.15);
     } 
     else if (type === 'start') {
-        // Power up sound
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(220, now);
         osc.frequency.linearRampToValueAtTime(880, now + 0.4);
-        
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
-        
         osc.start(now);
         osc.stop(now + 0.4);
     }
 }
-// -------------------------------------
 
 function createMatrix(w, h) {
     const matrix = [];
@@ -115,61 +105,22 @@ function createMatrix(w, h) {
 }
 
 function createPiece(type) {
-    if (type === 'I') {
-        return [
-            [0, 1, 0, 0],
-            [0, 1, 0, 0],
-            [0, 1, 0, 0],
-            [0, 1, 0, 0],
-        ];
-    } else if (type === 'L') {
-        return [
-            [0, 2, 0],
-            [0, 2, 0],
-            [0, 2, 2],
-        ];
-    } else if (type === 'J') {
-        return [
-            [0, 3, 0],
-            [0, 3, 0],
-            [3, 3, 0],
-        ];
-    } else if (type === 'O') {
-        return [
-            [4, 4],
-            [4, 4],
-        ];
-    } else if (type === 'Z') {
-        return [
-            [5, 5, 0],
-            [0, 5, 5],
-            [0, 0, 0],
-        ];
-    } else if (type === 'S') {
-        return [
-            [0, 6, 6],
-            [6, 6, 0],
-            [0, 0, 0],
-        ];
-    } else if (type === 'T') {
-        return [
-            [0, 7, 0],
-            [7, 7, 7],
-            [0, 0, 0],
-        ];
-    }
+    if (type === 'I') return [[0, 1, 0, 0],[0, 1, 0, 0],[0, 1, 0, 0],[0, 1, 0, 0]];
+    if (type === 'L') return [[0, 2, 0],[0, 2, 0],[0, 2, 2]];
+    if (type === 'J') return [[0, 3, 0],[0, 3, 0],[3, 3, 0]];
+    if (type === 'O') return [[4, 4],[4, 4]];
+    if (type === 'Z') return [[5, 5, 0],[0, 5, 5],[0, 0, 0]];
+    if (type === 'S') return [[0, 6, 6],[6, 6, 0],[0, 0, 0]];
+    if (type === 'T') return [[0, 7, 0],[7, 7, 7],[0, 0, 0]];
 }
 
 function createParticles(x, y, color) {
     for (let i = 0; i < 12; i++) {
         particles.push({
-            x: x + 0.5,
-            y: y + 0.5,
+            x: x + 0.5, y: y + 0.5,
             velX: (Math.random() - 0.5) * 0.8, 
             velY: (Math.random() - 0.5) * 0.8, 
-            life: 1.0, 
-            color: color,
-            size: Math.random() * 0.3 + 0.1
+            life: 1.0, color: color, size: Math.random() * 0.3 + 0.1
         });
     }
 }
@@ -177,14 +128,8 @@ function createParticles(x, y, color) {
 function updateParticles() {
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += p.velX;
-        p.y += p.velY;
-        p.velY += 0.02; 
-        p.life -= 0.03; 
-
-        if (p.life <= 0) {
-            particles.splice(i, 1);
-        }
+        p.x += p.velX; p.y += p.velY; p.velY += 0.02; p.life -= 0.03; 
+        if (p.life <= 0) particles.splice(i, 1);
     }
 }
 
@@ -214,11 +159,9 @@ function drawMatrix(matrix, offset, ctx) {
             if (value !== 0) {
                 ctx.fillStyle = colors[value];
                 ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
-                
                 ctx.lineWidth = 0.1; 
                 ctx.strokeStyle = '#111827'; 
                 ctx.strokeRect(x + offset.x + 0.05, y + offset.y + 0.05, 0.9, 0.9);
-                
                 ctx.fillStyle = 'rgba(255,255,255,0.25)';
                 ctx.fillRect(x + offset.x, y + offset.y, 1, 0.15);
             }
@@ -245,28 +188,18 @@ function drawGhost(matrix, offset, ctx) {
 function draw() {
     context.fillStyle = '#020617';
     context.fillRect(0, 0, canvas.width, canvas.height);
-
     drawMatrix(arena, {x: 0, y: 0}, context);
-
-    const ghost = {
-        matrix: player.matrix,
-        pos: {x: player.pos.x, y: player.pos.y}
-    };
-    while (!collide(arena, ghost)) {
-        ghost.pos.y++;
-    }
+    const ghost = { matrix: player.matrix, pos: {x: player.pos.x, y: player.pos.y} };
+    while (!collide(arena, ghost)) { ghost.pos.y++; }
     ghost.pos.y--;
     drawGhost(ghost.matrix, ghost.pos, context);
-
     drawMatrix(player.matrix, player.pos, context);
-
     drawParticles(context);
 }
 
 function drawNext() {
     nextContext.fillStyle = '#020617';
     nextContext.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
-
     if (player.next) {
         const offsetX = (4 - player.next[0].length) / 2;
         const offsetY = (4 - player.next.length) / 2;
@@ -277,15 +210,10 @@ function drawNext() {
 function drawHold() {
     holdContext.fillStyle = '#020617';
     holdContext.fillRect(0, 0, holdCanvas.width, holdCanvas.height);
-
     if (player.hold) {
         const offsetX = (4 - player.hold[0].length) / 2;
         const offsetY = (4 - player.hold.length) / 2;
-        
-        if (!canHold) {
-            holdContext.globalAlpha = 0.5;
-        }
-        
+        if (!canHold) holdContext.globalAlpha = 0.5;
         drawMatrix(player.hold, {x: offsetX, y: offsetY}, holdContext);
         holdContext.globalAlpha = 1.0;
     }
@@ -299,9 +227,7 @@ function merge(arena, player) {
             }
         });
     });
-    // TRIGGER SOUND: Place Block
     playSound('drop');
-    
     canHold = true;
     drawHold();
 }
@@ -329,11 +255,12 @@ function playerRotate(dir) {
             return;
         }
     }
+    // --- NEW: Reset Lock Timer on successful rotation ---
+    lockTimer = 0;
 }
 
 function playerHold() {
     if (!canHold) return;
-
     if (player.hold === null) {
         player.hold = player.matrix;
         player.matrix = player.next;
@@ -344,12 +271,12 @@ function playerHold() {
         player.matrix = player.hold;
         player.hold = temp;
     }
-
     player.pos.y = 0;
     player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-
     canHold = false;
     drawHold();
+    // --- NEW: Reset Lock Timer on hold ---
+    lockTimer = 0;
 }
 
 function collide(arena, player) {
@@ -365,18 +292,24 @@ function collide(arena, player) {
     return false;
 }
 
+// --- NEW: Helper to check if on ground ---
+function isGrounded() {
+    player.pos.y++;
+    const collision = collide(arena, player);
+    player.pos.y--;
+    return collision;
+}
+
 function playerReset() {
     if (player.next === null) {
         player.next = getPieceFromBag();
     }
-
     player.matrix = player.next;
     player.next = getPieceFromBag();
-    
     player.pos.y = 0;
     player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-
     drawNext();
+    lockTimer = 0; // Reset timer on new piece spawn
 
     if (collide(arena, player)) {
         isGameOver = true;
@@ -392,25 +325,18 @@ function arenaSweep() {
         for (let x = 0; x < arena[y].length; ++x) {
             if (arena[y][x] === 0) continue outer;
         }
-
-        // Spawn particles
         for (let x = 0; x < arena[y].length; ++x) {
             const colorIndex = arena[y][x];
             const color = colors[colorIndex];
             createParticles(x, y, color);
         }
-
         const row = arena.splice(y, 1)[0].fill(0);
         arena.unshift(row);
         ++y;
-        
         rowCount++;
     }
-
     if (rowCount > 0) {
-        // TRIGGER SOUND: Line Clear
         playSound('clear');
-        
         const lineScores = [0, 40, 100, 300, 1200];
         player.score += lineScores[rowCount] * player.level;
         player.lines += rowCount;
@@ -423,10 +349,6 @@ function playerDrop() {
     player.pos.y++;
     if (collide(arena, player)) {
         player.pos.y--;
-        merge(arena, player);
-        playerReset();
-        arenaSweep();
-        updateScore();
     }
     dropCounter = 0;
 }
@@ -441,6 +363,7 @@ function playerHardDrop() {
     arenaSweep();
     updateScore();
     dropCounter = 0;
+    lockTimer = 0; // Ensure timer is reset
 }
 
 function updateScore() {
@@ -457,10 +380,27 @@ function update(time = 0) {
 
     dropInterval = Math.max(50, 1000 - (player.level - 1) * 100);
 
+    
     if (dropCounter > dropInterval) playerDrop();
 
-    updateParticles();
+    
+    if (isGrounded()) {
+        lockTimer += deltaTime;
+        if (lockTimer > lockLimit) {
+            // Lock the piece.
+            merge(arena, player);
+            playerReset();
+            arenaSweep();
+            updateScore();
+            lockTimer = 0;
+        }
+    } else {
+        
+        lockTimer = 0;
+    }
+    
 
+    updateParticles();
     draw();
     animationId = requestAnimationFrame(update);
 }
@@ -472,32 +412,38 @@ document.addEventListener('keydown', event => {
         event.preventDefault();
     }
 
-    if (event.keyCode === 37 || event.keyCode === 65) {
+    if (event.keyCode === 37 || event.keyCode === 65) { // Left
         player.pos.x--;
-        if (collide(arena, player)) player.pos.x++;
+        if (collide(arena, player)) {
+            player.pos.x++;
+        } else {
+            lockTimer = 0; // Reset timer on successful move
+        }
     } 
-    else if (event.keyCode === 39 || event.keyCode === 68) {
+    else if (event.keyCode === 39 || event.keyCode === 68) { // Right
         player.pos.x++;
-        if (collide(arena, player)) player.pos.x--;
+        if (collide(arena, player)) {
+            player.pos.x--;
+        } else {
+            lockTimer = 0; // Reset timer on successful move
+        }
     } 
-    else if (event.keyCode === 40 || event.keyCode === 83) {
+    else if (event.keyCode === 40 || event.keyCode === 83) { // Down
         playerDrop();
     } 
-    else if (event.keyCode === 38 || event.keyCode === 87) {
+    else if (event.keyCode === 38 || event.keyCode === 87) { // Rotate
         playerRotate(1);
     }
-    else if (event.keyCode === 32) {
+    else if (event.keyCode === 32) { // Hard Drop
         playerHardDrop();
     }
-    else if (event.keyCode === 67) { 
+    else if (event.keyCode === 67) { // Hold
         playerHold();
     }
 });
 
 startBtn.addEventListener('click', () => {
-    // TRIGGER SOUND: Start Game
     playSound('start');
-
     if (isGameOver) {
         arena.forEach(row => row.fill(0));
         player.score = 0;
@@ -508,6 +454,7 @@ startBtn.addEventListener('click', () => {
         piecesBag = []; 
         particles = []; 
         canHold = true;
+        lockTimer = 0; // Reset
         updateScore();
         drawHold();
         isGameOver = false;

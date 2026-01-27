@@ -481,7 +481,7 @@ function update(time = 0) {
     dropCounter += deltaTime;
     difficultyTimer += deltaTime;
 
-    // --- DIFFICULTY LOGIC (Speeds up every 30s) ---
+    // DIFFICULTY LEVEL
     if (difficultyTimer > difficultyInterval) {
         difficultyTimer = 0;
         dropInterval = dropInterval * 0.9; // 10% Faster
