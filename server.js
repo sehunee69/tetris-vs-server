@@ -5,7 +5,16 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+// --- START OF FIX ---
+// We must tell the server to allow connections from "dcism.org" (or anywhere)
+const io = new Server(server, {
+    cors: {
+        origin: "*",  // This is the magic key. It allows ANY website to connect.
+        methods: ["GET", "POST"]
+    }
+});
+// --- END OF FIX ---
 
 // Serve static files from the "public" folder
 app.use(express.static(path.join(__dirname, 'public')));
@@ -31,7 +40,7 @@ io.on('connection', (socket) => {
             // Notify both players
             io.to(roomId).emit('match_found', roomId);
             
-            // Assign roles (Player 1 starts on left for themselves, but we handle roles locally)
+            // Assign roles
             socket.emit('start_game', { role: 'player2', opponentId: opponent.id });
             opponent.emit('start_game', { role: 'player1', opponentId: socket.id });
 
@@ -46,8 +55,6 @@ io.on('connection', (socket) => {
 
     // Relay Game State (Movement, Board Updates)
     socket.on('update_state', (data) => {
-        // Broadcast to the opponent in the room (using to(room).except(socket))
-        // simpler: just broadcast to the specific room, but exclude sender
         socket.to(data.room).emit('opponent_update', data.state);
     });
 
@@ -66,7 +73,6 @@ io.on('connection', (socket) => {
         if (waitingPlayer === socket) {
             waitingPlayer = null;
         }
-        // Ideally, notify the opponent that they won by default
     });
 });
 
