@@ -1,4 +1,5 @@
-const socket = io();
+// --- SOCKET CONNECTION (Updated to Render) ---
+const socket = io('https://vstetris.onrender.com');
 
 // --- AUDIO SYSTEM ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
