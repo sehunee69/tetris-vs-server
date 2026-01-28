@@ -47,7 +47,7 @@ const Input = {
         KeyA: false, KeyD: false, KeyS: false
     },
     
-    DAS: 100,  // Pro Speed (Same as Singleplayer)
+    DAS: 100,  
     ARR: 0,    
     
     timer: 0,
@@ -59,7 +59,6 @@ const Input = {
         let right = this.keys.ArrowRight || this.keys.KeyD;
         let requestedDir = 0;
 
-        // Last Key Priority Logic
         if (left && right) {
             if (this.lastKeyPressed === 'left') requestedDir = -1;
             else if (this.lastKeyPressed === 'right') requestedDir = 1;
@@ -85,7 +84,6 @@ const Input = {
     }
 };
 
-// Scale everything
 context.scale(25, 25); 
 remoteContext.scale(25, 25);
 nextContext.scale(20, 20);
@@ -106,6 +104,10 @@ let lastTime = 0;
 let difficultyTimer = 0;
 const difficultyInterval = 30000; 
 
+// --- NEW: LOCK DELAY VARIABLES ---
+let lockTimer = 0;
+const lockLimit = 500; // 0.5s to rotate before locking
+
 let particles = [];
 let piecesBag = [];
 let canHold = true;
@@ -113,7 +115,7 @@ let canHold = true;
 const player = {
     pos: {x: 0, y: 0},
     matrix: null,
-    nextQueue: [], // 5-Piece Queue
+    nextQueue: [],
     hold: null,
     score: 0,
     arena: createMatrix(12, 24),
@@ -126,7 +128,7 @@ const opponent = {
     arena: createMatrix(12, 24)
 };
 
-// --- SRS KICK TABLES (PRO MECHANICS) ---
+// --- SRS KICK TABLES ---
 const JLSTZ_KICKS = [
     [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]], 
     [[0,0], [1,0], [1,1], [0,-2], [1,-2]],   
@@ -152,50 +154,20 @@ const I_KICKS_CCW = [
     [[0,0], [-2,0], [1,0], [-2,-1], [1,2]]   
 ];
 
-// --- HELPER FUNCTIONS ---
 function createMatrix(w, h) {
     const matrix = [];
     while (h--) matrix.push(new Array(w).fill(0));
     return matrix;
 }
 
-// FIXED: Flat Shapes (Fixes "Not Flat" bug in Next Box)
 function createPiece(type) {
-    if (type === 'I') return [
-        [0, 0, 0, 0],
-        [1, 1, 1, 1],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0],
-    ];
-    if (type === 'J') return [
-        [3, 0, 0],
-        [3, 3, 3],
-        [0, 0, 0],
-    ];
-    if (type === 'L') return [
-        [0, 0, 2],
-        [2, 2, 2],
-        [0, 0, 0],
-    ];
-    if (type === 'O') return [
-        [4, 4],
-        [4, 4],
-    ];
-    if (type === 'S') return [
-        [0, 6, 6],
-        [6, 6, 0],
-        [0, 0, 0],
-    ];
-    if (type === 'T') return [
-        [0, 7, 0],
-        [7, 7, 7],
-        [0, 0, 0],
-    ];
-    if (type === 'Z') return [
-        [5, 5, 0],
-        [0, 5, 5],
-        [0, 0, 0],
-    ];
+    if (type === 'I') return [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]];
+    if (type === 'J') return [[3, 0, 0], [3, 3, 3], [0, 0, 0]];
+    if (type === 'L') return [[0, 0, 2], [2, 2, 2], [0, 0, 0]];
+    if (type === 'O') return [[4, 4], [4, 4]];
+    if (type === 'S') return [[0, 6, 6], [6, 6, 0], [0, 0, 0]];
+    if (type === 'T') return [[0, 7, 0], [7, 7, 7], [0, 0, 0]];
+    if (type === 'Z') return [[5, 5, 0], [0, 5, 5], [0, 0, 0]];
 }
 
 function getPieceFromBag() {
@@ -209,7 +181,6 @@ function getPieceFromBag() {
     return createPiece(piecesBag.pop());
 }
 
-// NEW: Queue Manager
 function updateNextQueue() {
     while (player.nextQueue.length < 5) {
         player.nextQueue.push(getPieceFromBag());
@@ -284,23 +255,15 @@ function drawRemote() {
     }
 }
 
-// FIXED: Draws 5-piece queue and flat shapes
 function drawPreview() {
-    // 1. Next Queue
     nextContext.fillStyle = '#111827'; nextContext.fillRect(0,0, nextCanvas.width, nextCanvas.height);
-    
-    // Fallback if queue isn't ready
     if (player.nextQueue.length === 0) updateNextQueue();
-
     player.nextQueue.forEach((piece, index) => {
-        // Center horizontally in 5-width grid
         const offsetX = (5 - piece[0].length) / 2;
-        // Stack vertically
         const offsetY = 1 + (index * 4);
         drawMatrix(nextContext, piece, {x: offsetX, y: offsetY});
     });
 
-    // 2. Hold
     holdContext.fillStyle = '#111827'; holdContext.fillRect(0,0, holdCanvas.width, holdCanvas.height);
     if(player.hold) {
         const offX = (5 - player.hold[0].length)/2; 
@@ -348,8 +311,6 @@ function emitState() {
     });
 }
 
-// --- GAME LOGIC ---
-
 function startCountdown() {
     countdownScreen.style.display = 'flex';
     let count = 3;
@@ -370,26 +331,22 @@ function startCountdown() {
 function startGame() {
     player.arena.forEach(row => row.fill(0));
     player.score = 0; player.hold = null; canHold = true; 
-    piecesBag = []; particles = []; player.nextQueue = []; // Reset queue
+    piecesBag = []; particles = []; player.nextQueue = []; 
     dropInterval = 1000; difficultyTimer = 0;
-    
-    updateNextQueue(); // Fill bag
+    updateNextQueue(); 
     playerReset();
-    
     gameActive = true;
     update();
 }
 
-// FIXED: Uses Queue
 function playerReset() {
     if (player.nextQueue.length === 0) updateNextQueue();
-    
     player.matrix = player.nextQueue.shift(); 
-    updateNextQueue(); // Refill
-    
+    updateNextQueue(); 
     player.pos.y = 0; player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
     player.rotateIndex = 0; 
     drawPreview();
+    lockTimer = 0; // Reset lock on spawn
     if (collide(player.arena, player)) endGame(false);
     emitState();
 }
@@ -412,6 +369,14 @@ function collide(arena, player) {
     return false;
 }
 
+// --- NEW: GROUND CHECK HELPER ---
+function isGrounded() {
+    player.pos.y++;
+    const collision = collide(player.arena, player);
+    player.pos.y--;
+    return collision;
+}
+
 function rotate(matrix, dir) {
     for (let y = 0; y < matrix.length; ++y) {
         for (let x = 0; x < y; ++x) {
@@ -422,12 +387,10 @@ function rotate(matrix, dir) {
     else matrix.reverse();
 }
 
-// FIXED: SRS Wall Kicks
 function playerRotate(dir) {
     let type = 'T'; 
     if (player.matrix.length === 4) type = 'I';
     else if (player.matrix.length === 2) type = 'O'; 
-    
     if (type === 'O') return; 
     
     const oldRot = player.rotateIndex;
@@ -448,18 +411,17 @@ function playerRotate(dir) {
         
         if (!collide(player.arena, player)) {
             player.rotateIndex = newRot;
+            lockTimer = 0; // SUCCESS: Reset Lock Timer (Infinity Spin)
             emitState(); 
             return;
         }
     }
     
-    // Failed
     rotate(player.matrix, -dir);
     player.pos.x = oldX;
     player.pos.y = oldY;
 }
 
-// FIXED: Uses Queue
 function playerHold() {
     if(!canHold) return;
     if(!player.hold) {
@@ -471,7 +433,8 @@ function playerHold() {
     }
     player.pos.y = 0; player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
     player.rotateIndex = 0; 
-    canHold = false; drawPreview(); emitState();
+    canHold = false; lockTimer = 0; // Reset Lock
+    drawPreview(); emitState();
 }
 
 function arenaSweep() {
@@ -497,10 +460,12 @@ function merge(arena, player) {
     playSound('drop'); canHold = true; drawPreview(); emitState();
 }
 
+// FIXED: Doesn't merge immediately. Just moves.
 function playerDrop() {
     player.pos.y++;
     if (collide(player.arena, player)) {
-        player.pos.y--; merge(player.arena, player); playerReset(); arenaSweep(); emitState();
+        player.pos.y--; 
+        // Do NOT merge here. Let the Lock Timer handle it.
     }
     dropCounter = 0;
     emitState();
@@ -508,7 +473,7 @@ function playerDrop() {
 
 function playerHardDrop() {
     while (!collide(player.arena, player)) player.pos.y++;
-    player.pos.y--; merge(player.arena, player); playerReset(); arenaSweep(); emitState(); dropCounter = 0;
+    player.pos.y--; merge(player.arena, player); playerReset(); arenaSweep(); emitState(); dropCounter = 0; lockTimer = 0;
 }
 
 function update(time = 0) {
@@ -526,13 +491,17 @@ function update(time = 0) {
             player.pos.x += Input.currentDir;
             moved = true;
         }
-        if (moved) emitState();
+        if (moved) {
+            lockTimer = 0; // Reset on move
+            emitState();
+        }
     } 
     else if (moveCommand !== 0) {
         player.pos.x += moveCommand;
         if (collide(player.arena, player)) {
             player.pos.x -= moveCommand;
         } else {
+            lockTimer = 0; // Reset on move
             emitState();
         }
     }
@@ -553,45 +522,46 @@ function update(time = 0) {
 
     if (dropCounter > dropInterval) playerDrop();
     
+    // --- NEW: LOCK DELAY LOGIC ---
+    if (isGrounded()) {
+        lockTimer += deltaTime;
+        if (lockTimer > lockLimit) {
+            merge(player.arena, player);
+            playerReset();
+            arenaSweep();
+            emitState();
+            lockTimer = 0;
+        }
+    } else {
+        lockTimer = 0;
+    }
+
     updateParticles();
     draw(); 
     requestAnimationFrame(update);
 }
 
-// --- CONTROLS ---
 document.addEventListener('keydown', event => {
     if (!gameActive) return;
     if([32, 37, 38, 39, 40].indexOf(event.keyCode) > -1) event.preventDefault();
 
-    // 1. UPDATE STATE
     if (Input.keys.hasOwnProperty(event.code)) {
         Input.keys[event.code] = true;
-        
-        // PRIORITY
         if (event.code === 'ArrowLeft' || event.code === 'KeyA') Input.lastKeyPressed = 'left';
         if (event.code === 'ArrowRight' || event.code === 'KeyD') Input.lastKeyPressed = 'right';
     }
 
-    // 2. INSTANT ACTIONS
     switch(event.code) {
         case 'ArrowUp':
-        case 'KeyW':
-            playerRotate(1);
-            break;
-        case 'Space':
-            playerHardDrop();
-            break;
-        case 'KeyC':
-            playerHold();
-            break;
+        case 'KeyW': playerRotate(1); break;
+        case 'Space': playerHardDrop(); break;
+        case 'KeyC': playerHold(); break;
     }
 });
 
 document.addEventListener('keyup', event => {
     if (Input.keys.hasOwnProperty(event.code)) {
         Input.keys[event.code] = false;
-        
-        // PRIORITY CLEANUP
         if ((event.code === 'ArrowLeft' || event.code === 'KeyA') && Input.lastKeyPressed === 'left') {
             if (Input.keys.ArrowRight || Input.keys.KeyD) Input.lastKeyPressed = 'right';
             else Input.lastKeyPressed = null;
