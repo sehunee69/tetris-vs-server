@@ -40,14 +40,14 @@ const resultScreen = document.getElementById('result-screen');
 const resultTitle = document.getElementById('result-title');
 const scoreElement = document.getElementById('score');
 
-// --- MODERN INPUT CONTROLLER (UPDATED: DAS 100) ---
+// --- MODERN INPUT CONTROLLER ---
 const Input = {
     keys: { 
         ArrowLeft: false, ArrowRight: false, ArrowDown: false,
         KeyA: false, KeyD: false, KeyS: false
     },
     
-    DAS: 100,  // CHANGED: 130 -> 100 (Pro Speed)
+    DAS: 100,  // Pro Speed (Same as Singleplayer)
     ARR: 0,    
     
     timer: 0,
@@ -110,15 +110,14 @@ let particles = [];
 let piecesBag = [];
 let canHold = true;
 
-// CHANGED: Added rotateIndex to player
 const player = {
     pos: {x: 0, y: 0},
     matrix: null,
-    next: null,
+    nextQueue: [], // 5-Piece Queue
     hold: null,
     score: 0,
     arena: createMatrix(12, 24),
-    rotateIndex: 0 // Track rotation state (0-3)
+    rotateIndex: 0 
 };
 
 const opponent = {
@@ -127,7 +126,7 @@ const opponent = {
     arena: createMatrix(12, 24)
 };
 
-// --- SRS KICK TABLES (ADDED) ---
+// --- SRS KICK TABLES (PRO MECHANICS) ---
 const JLSTZ_KICKS = [
     [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]], 
     [[0,0], [1,0], [1,1], [0,-2], [1,-2]],   
@@ -160,8 +159,8 @@ function createMatrix(w, h) {
     return matrix;
 }
 
+// FIXED: Flat Shapes (Fixes "Not Flat" bug in Next Box)
 function createPiece(type) {
-    // CHANGED: Using Flat/Horizontal SRS Shapes
     if (type === 'I') return [
         [0, 0, 0, 0],
         [1, 1, 1, 1],
@@ -208,6 +207,13 @@ function getPieceFromBag() {
         }
     }
     return createPiece(piecesBag.pop());
+}
+
+// NEW: Queue Manager
+function updateNextQueue() {
+    while (player.nextQueue.length < 5) {
+        player.nextQueue.push(getPieceFromBag());
+    }
 }
 
 // --- VISUALS ---
@@ -278,29 +284,24 @@ function drawRemote() {
     }
 }
 
+// FIXED: Draws 5-piece queue and flat shapes
 function drawPreview() {
-    // 1. Draw Next Queue (5 Pieces)
-    nextContext.fillStyle = 'rgba(0,0,0,0.0)';
-    nextContext.clearRect(0, 0, 100, 420); 
+    // 1. Next Queue
+    nextContext.fillStyle = '#111827'; nextContext.fillRect(0,0, nextCanvas.width, nextCanvas.height);
     
-    // We need to implement the queue system in VS logic just like singleplayer
-    // If player.nextQueue doesn't exist yet, we just draw the single 'next' piece
-    if (player.nextQueue && player.nextQueue.length > 0) {
-        player.nextQueue.forEach((piece, index) => {
-            const offsetX = (5 - piece[0].length) / 2; 
-            const offsetY = 1 + (index * 4); 
-            drawMatrix(nextContext, piece, {x: offsetX, y: offsetY});
-        });
-    } else if(player.next) {
-        // Fallback if queue logic isn't fully added yet
-        const offX = (5 - player.next[0].length)/2;
-        const offY = 1;
-        drawMatrix(nextContext, player.next, {x:offX, y:offY});
-    }
+    // Fallback if queue isn't ready
+    if (player.nextQueue.length === 0) updateNextQueue();
 
-    // 2. Draw Hold
-    holdContext.fillStyle = 'rgba(0,0,0,0.0)';
-    holdContext.clearRect(0, 0, 100, 80);
+    player.nextQueue.forEach((piece, index) => {
+        // Center horizontally in 5-width grid
+        const offsetX = (5 - piece[0].length) / 2;
+        // Stack vertically
+        const offsetY = 1 + (index * 4);
+        drawMatrix(nextContext, piece, {x: offsetX, y: offsetY});
+    });
+
+    // 2. Hold
+    holdContext.fillStyle = '#111827'; holdContext.fillRect(0,0, holdCanvas.width, holdCanvas.height);
     if(player.hold) {
         const offX = (5 - player.hold[0].length)/2; 
         const offY = (4 - player.hold.length)/2;
@@ -368,18 +369,26 @@ function startCountdown() {
 
 function startGame() {
     player.arena.forEach(row => row.fill(0));
-    player.score = 0; player.hold = null; canHold = true; piecesBag = []; particles = [];
+    player.score = 0; player.hold = null; canHold = true; 
+    piecesBag = []; particles = []; player.nextQueue = []; // Reset queue
     dropInterval = 1000; difficultyTimer = 0;
-    player.next = getPieceFromBag();
+    
+    updateNextQueue(); // Fill bag
     playerReset();
+    
     gameActive = true;
     update();
 }
 
+// FIXED: Uses Queue
 function playerReset() {
-    player.matrix = player.next; player.next = getPieceFromBag();
+    if (player.nextQueue.length === 0) updateNextQueue();
+    
+    player.matrix = player.nextQueue.shift(); 
+    updateNextQueue(); // Refill
+    
     player.pos.y = 0; player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-    player.rotateIndex = 0; // CHANGED: Reset rotation state
+    player.rotateIndex = 0; 
     drawPreview();
     if (collide(player.arena, player)) endGame(false);
     emitState();
@@ -413,7 +422,7 @@ function rotate(matrix, dir) {
     else matrix.reverse();
 }
 
-// CHANGED: SRS Rotation Logic with Wall Kicks
+// FIXED: SRS Wall Kicks
 function playerRotate(dir) {
     let type = 'T'; 
     if (player.matrix.length === 4) type = 'I';
@@ -439,7 +448,7 @@ function playerRotate(dir) {
         
         if (!collide(player.arena, player)) {
             player.rotateIndex = newRot;
-            emitState(); // Important for Multiplayer sync!
+            emitState(); 
             return;
         }
     }
@@ -450,15 +459,18 @@ function playerRotate(dir) {
     player.pos.y = oldY;
 }
 
+// FIXED: Uses Queue
 function playerHold() {
     if(!canHold) return;
     if(!player.hold) {
-        player.hold = player.matrix; player.matrix = player.next; player.next = getPieceFromBag();
+        player.hold = player.matrix; 
+        player.matrix = player.nextQueue.shift(); 
+        updateNextQueue();
     } else {
         const temp = player.matrix; player.matrix = player.hold; player.hold = temp;
     }
     player.pos.y = 0; player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-    player.rotateIndex = 0; // CHANGED: Reset rotation on hold
+    player.rotateIndex = 0; 
     canHold = false; drawPreview(); emitState();
 }
 
