@@ -8,15 +8,20 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "*",  
+        origin: "*", 
         methods: ["GET", "POST"]
     }
 });
 
-
-// Serve static files from the "public" folder
+// 1. Serve static files (css, js, images) from the 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
+// 2. FIX: Serve index.html from 'public' when visiting the root '/'
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html')); 
+});
+
+// --- SOCKET IO LOGIC ---
 let waitingPlayer = null;
 
 io.on('connection', (socket) => {
@@ -25,43 +30,29 @@ io.on('connection', (socket) => {
     socket.on('join_queue', () => {
         if (waitingPlayer) {
             // Match found!
+            const roomID = waitingPlayer.id + '#' + socket.id;
             const opponent = waitingPlayer;
             waitingPlayer = null;
 
-            // Create a unique room ID
-            const roomId = opponent.id + '#' + socket.id;
-            
-            // Join both to the room
-            socket.join(roomId);
-            opponent.join(roomId);
+            socket.join(roomID);
+            opponent.join(roomID);
 
-            // Notify both players
-            io.to(roomId).emit('match_found', roomId);
-            
-            // Assign roles
-            socket.emit('start_game', { role: 'player2', opponentId: opponent.id });
-            opponent.emit('start_game', { role: 'player1', opponentId: socket.id });
-
-            console.log(`Match started: ${opponent.id} vs ${socket.id}`);
+            io.to(roomID).emit('match_found', roomID);
+            console.log(`Match started in room: ${roomID}`);
         } else {
-            // No one waiting, put this socket in queue
             waitingPlayer = socket;
-            socket.emit('waiting_for_match');
-            console.log(`User ${socket.id} is waiting...`);
+            console.log('User waiting for match...');
         }
     });
 
-    // Relay Game State (Movement, Board Updates)
     socket.on('update_state', (data) => {
         socket.to(data.room).emit('opponent_update', data.state);
     });
 
-    // Handle Attack (Garbage Lines)
     socket.on('send_garbage', (data) => {
         socket.to(data.room).emit('receive_garbage', data.lines);
     });
 
-    // Handle Game Over
     socket.on('player_game_over', (data) => {
         socket.to(data.room).emit('opponent_game_over');
     });
@@ -76,5 +67,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });

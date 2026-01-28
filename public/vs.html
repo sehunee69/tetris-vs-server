@@ -23,6 +23,7 @@
             background: rgba(31, 41, 55, 0.8);
             backdrop-filter: blur(4px);
             border: 2px solid rgba(55, 65, 81, 1);
+            border-radius: 0.5rem;
         }
         #waiting-screen, #countdown-screen, #result-screen {
             position: absolute; inset: 0; z-index: 50;
@@ -42,6 +43,7 @@
         <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 mb-6"></div>
         <h1 class="text-3xl font-bold tracking-widest animate-pulse">SEARCHING FOR OPPONENT...</h1>
         <p class="text-gray-400 mt-2">Share the link to invite a friend!</p>
+        <button onclick="window.location.href='../index.html'" class="mt-8 text-gray-500 hover:text-white text-sm font-bold tracking-widest">CANCEL</button>
     </div>
 
     <div id="countdown-screen">
@@ -50,44 +52,52 @@
 
     <div id="result-screen">
         <h1 id="result-title" class="text-6xl font-bold mb-4">GAME OVER</h1>
-        <button onclick="window.location.reload()" class="bg-blue-600 px-6 py-3 rounded text-xl font-bold hover:bg-blue-500 transition shadow-lg">Find New Match</button>
+        <div class="flex gap-4">
+            <button onclick="window.location.reload()" class="bg-blue-600 px-6 py-3 rounded text-xl font-bold hover:bg-blue-500 transition shadow-lg">Find New Match</button>
+            <button onclick="window.location.href='../index.html'" class="bg-gray-700 px-6 py-3 rounded text-xl font-bold hover:bg-gray-600 transition shadow-lg">Main Menu</button>
+        </div>
     </div>
 
-    <div class="flex flex-row gap-8 items-end scale-90 md:scale-100">
+    <div class="flex flex-row gap-12 items-center scale-90 md:scale-100 h-full pt-10">
         
         <div class="flex flex-row gap-4 items-start">
             
-            <div class="flex flex-col gap-4 w-24">
-                <div class="glass-panel p-2 rounded-lg flex flex-col items-center">
-                    <span class="text-gray-400 text-xs mb-1">HOLD</span>
-                    <canvas id="hold" width="80" height="80" class="bg-gray-900 rounded"></canvas>
+            <div class="flex flex-col gap-3 w-32">
+                <div class="glass-panel p-2 flex flex-col items-center shadow-lg">
+                    <span class="text-gray-400 text-xs mb-1 tracking-widest">HOLD</span>
+                    <canvas id="hold" width="100" height="80" class="bg-gray-900/50 rounded"></canvas>
                 </div>
-                <div class="glass-panel p-2 rounded-lg text-center">
-                    <span class="text-gray-400 text-xs">SCORE</span>
-                    <div id="score" class="text-xl font-bold text-green-400">0</div>
+
+                <div class="glass-panel p-3 text-center shadow-lg mt-2">
+                    <span class="text-gray-400 text-xs tracking-widest">SCORE</span>
+                    <div id="score" class="text-xl font-black text-green-400 drop-shadow-md">0</div>
                 </div>
             </div>
 
             <div class="flex flex-col items-center gap-2">
-                <h2 class="text-blue-400 font-bold tracking-widest text-xl">YOU</h2>
-                <div class="relative border-4 border-blue-600 rounded-lg shadow-2xl bg-gray-950">
+                <h2 class="text-blue-500 font-bold tracking-[0.2em] text-xl drop-shadow-lg">YOU</h2>
+                <div class="relative border-4 border-blue-600/50 rounded-lg shadow-[0_0_30px_rgba(37,99,235,0.2)] bg-gray-950">
                     <canvas id="local" width="300" height="600"></canvas>
                 </div>
             </div>
 
-            <div class="flex flex-col gap-4 w-24">
-                <div class="glass-panel p-2 rounded-lg flex flex-col items-center">
-                    <span class="text-gray-400 text-xs mb-1">NEXT</span>
-                    <canvas id="next" width="80" height="80" class="bg-gray-900 rounded"></canvas>
+            <div class="flex flex-col gap-4 w-32 h-full justify-start">
+                <div class="glass-panel p-2 flex flex-col items-center shadow-lg h-[450px]">
+                    <span class="text-gray-400 text-xs mb-1 tracking-widest">NEXT</span>
+                    <canvas id="next" width="100" height="420" class="bg-gray-900/50 rounded"></canvas>
                 </div>
             </div>
         </div>
 
-        <div class="mb-64 text-6xl font-black italic text-gray-600 opacity-50 mx-4">VS</div>
+        <div class="flex flex-col items-center justify-center opacity-50">
+            <div class="h-32 w-1 bg-gray-600 rounded-full mb-4"></div>
+            <span class="text-6xl font-black italic text-gray-500">VS</span>
+            <div class="h-32 w-1 bg-gray-600 rounded-full mt-4"></div>
+        </div>
 
-        <div class="flex flex-col items-center gap-2">
-            <h2 class="text-red-500 font-bold tracking-widest text-xl">ENEMY</h2>
-            <div class="relative border-4 border-red-600 rounded-lg shadow-2xl bg-gray-950 opacity-90">
+        <div class="flex flex-col items-center gap-2 opacity-90 scale-90">
+            <h2 class="text-red-500 font-bold tracking-[0.2em] text-xl drop-shadow-lg">ENEMY</h2>
+            <div class="relative border-4 border-red-600/50 rounded-lg shadow-[0_0_30px_rgba(220,38,38,0.2)] bg-gray-950">
                 <canvas id="remote" width="300" height="600"></canvas>
             </div>
         </div>

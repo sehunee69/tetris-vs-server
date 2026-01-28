@@ -1,4 +1,3 @@
-// --- SOCKET CONNECTION (Updated to Render) ---
 const socket = io('https://vstetris.onrender.com');
 
 // --- AUDIO SYSTEM ---
@@ -12,29 +11,14 @@ function playSound(type) {
     const now = audioCtx.currentTime;
 
     if (type === 'drop') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
-        gain.gain.setValueAtTime(0.5, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-        osc.start(now);
-        osc.stop(now + 0.1);
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+        gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1);
     } else if (type === 'clear') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-        osc.start(now);
-        osc.stop(now + 0.15);
+        osc.type = 'square'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+        gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15);
     } else if (type === 'start') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220, now);
-        osc.frequency.linearRampToValueAtTime(880, now + 0.4);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
-        osc.start(now);
-        osc.stop(now + 0.4);
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, now); osc.frequency.linearRampToValueAtTime(880, now + 0.4);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.4); osc.start(now); osc.stop(now + 0.4);
     }
 }
 
@@ -56,16 +40,59 @@ const resultScreen = document.getElementById('result-screen');
 const resultTitle = document.getElementById('result-title');
 const scoreElement = document.getElementById('score');
 
+// --- MODERN INPUT CONTROLLER (UPDATED: DAS 100) ---
+const Input = {
+    keys: { 
+        ArrowLeft: false, ArrowRight: false, ArrowDown: false,
+        KeyA: false, KeyD: false, KeyS: false
+    },
+    
+    DAS: 100,  // CHANGED: 130 -> 100 (Pro Speed)
+    ARR: 0,    
+    
+    timer: 0,
+    currentDir: 0,
+    lastKeyPressed: null, 
+    
+    update(deltaTime) {
+        let left = this.keys.ArrowLeft || this.keys.KeyA;
+        let right = this.keys.ArrowRight || this.keys.KeyD;
+        let requestedDir = 0;
+
+        // Last Key Priority Logic
+        if (left && right) {
+            if (this.lastKeyPressed === 'left') requestedDir = -1;
+            else if (this.lastKeyPressed === 'right') requestedDir = 1;
+        } else if (left) {
+            requestedDir = -1;
+        } else if (right) {
+            requestedDir = 1;
+        }
+
+        if (requestedDir !== this.currentDir) {
+            this.currentDir = requestedDir;
+            this.timer = 0;
+            return requestedDir; 
+        } 
+        else if (requestedDir !== 0) {
+            this.timer += deltaTime;
+            if (this.timer >= this.DAS) {
+                if (this.ARR === 0) return "INSTANT"; 
+                return requestedDir;
+            }
+        }
+        return 0; 
+    }
+};
+
 // Scale everything
-context.scale(25, 25); // 12x24 grid = 300x600 pixels
+context.scale(25, 25); 
 remoteContext.scale(25, 25);
 nextContext.scale(20, 20);
 holdContext.scale(20, 20);
 
 const colors = [
-    null,
-    '#ef4444', '#3b82f6', '#eab308', '#22c55e', 
-    '#a855f7', '#f97316', '#06b6d4', '#4b5563' // #4b5563 is Grey (Garbage)
+    null, '#ef4444', '#3b82f6', '#eab308', '#22c55e', '#a855f7', '#f97316', '#06b6d4', '#4b5563' 
 ];
 
 // --- GAME STATE ---
@@ -76,14 +103,14 @@ let dropCounter = 0;
 let dropInterval = 1000;
 let lastTime = 0;
 
-// Difficulty Variables
 let difficultyTimer = 0;
-const difficultyInterval = 30000; // 30 Seconds
+const difficultyInterval = 30000; 
 
 let particles = [];
 let piecesBag = [];
 let canHold = true;
 
+// CHANGED: Added rotateIndex to player
 const player = {
     pos: {x: 0, y: 0},
     matrix: null,
@@ -91,14 +118,40 @@ const player = {
     hold: null,
     score: 0,
     arena: createMatrix(12, 24),
+    rotateIndex: 0 // Track rotation state (0-3)
 };
 
-// Opponent State
 const opponent = {
     matrix: null,
     pos: {x: 0, y: 0},
     arena: createMatrix(12, 24)
 };
+
+// --- SRS KICK TABLES (ADDED) ---
+const JLSTZ_KICKS = [
+    [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]], 
+    [[0,0], [1,0], [1,1], [0,-2], [1,-2]],   
+    [[0,0], [1,0], [1,-1], [0,2], [1,2]],    
+    [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]] 
+];
+const I_KICKS = [
+    [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],  
+    [[0,0], [-1,0], [2,0], [-1,-2], [2,1]],  
+    [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],  
+    [[0,0], [1,0], [-2,0], [1,2], [-2,-1]]   
+];
+const JLSTZ_KICKS_CCW = [
+    [[0,0], [1,0], [1,1], [0,-2], [1,-2]],   
+    [[0,0], [1,0], [1,-1], [0,2], [1,2]],    
+    [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+    [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]]  
+];
+const I_KICKS_CCW = [
+    [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],  
+    [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],  
+    [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],  
+    [[0,0], [-2,0], [1,0], [-2,-1], [1,2]]   
+];
 
 // --- HELPER FUNCTIONS ---
 function createMatrix(w, h) {
@@ -108,13 +161,42 @@ function createMatrix(w, h) {
 }
 
 function createPiece(type) {
-    if (type === 'I') return [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
-    if (type === 'L') return [[0,2,0],[0,2,0],[0,2,2]];
-    if (type === 'J') return [[0,3,0],[0,3,0],[3,3,0]];
-    if (type === 'O') return [[4,4],[4,4]];
-    if (type === 'Z') return [[5,5,0],[0,5,5],[0,0,0]];
-    if (type === 'S') return [[0,6,6],[6,6,0],[0,0,0]];
-    if (type === 'T') return [[0,7,0],[7,7,7],[0,0,0]];
+    // CHANGED: Using Flat/Horizontal SRS Shapes
+    if (type === 'I') return [
+        [0, 0, 0, 0],
+        [1, 1, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ];
+    if (type === 'J') return [
+        [3, 0, 0],
+        [3, 3, 3],
+        [0, 0, 0],
+    ];
+    if (type === 'L') return [
+        [0, 0, 2],
+        [2, 2, 2],
+        [0, 0, 0],
+    ];
+    if (type === 'O') return [
+        [4, 4],
+        [4, 4],
+    ];
+    if (type === 'S') return [
+        [0, 6, 6],
+        [6, 6, 0],
+        [0, 0, 0],
+    ];
+    if (type === 'T') return [
+        [0, 7, 0],
+        [7, 7, 7],
+        [0, 0, 0],
+    ];
+    if (type === 'Z') return [
+        [5, 5, 0],
+        [0, 5, 5],
+        [0, 0, 0],
+    ];
 }
 
 function getPieceFromBag() {
@@ -150,9 +232,7 @@ function updateParticles() {
 
 function drawParticles(ctx) {
     particles.forEach(p => {
-        ctx.globalAlpha = p.life;
-        ctx.fillStyle = p.color;
-        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
     });
     ctx.globalAlpha = 1.0;
 }
@@ -163,13 +243,8 @@ function drawMatrix(ctx, matrix, offset) {
             if (value !== 0) {
                 ctx.fillStyle = colors[value];
                 ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
-                ctx.lineWidth = 0.05;
-                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-                ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
-                
-                // Shine
-                ctx.fillStyle = 'rgba(255,255,255,0.1)';
-                ctx.fillRect(x + offset.x, y + offset.y, 1, 0.2);
+                ctx.lineWidth = 0.05; ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
+                ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(x + offset.x, y + offset.y, 1, 0.2);
             }
         });
     });
@@ -180,54 +255,54 @@ function drawGhost(ctx, arena, playerMatrix, playerPos) {
     while (!collide(arena, { matrix: playerMatrix, pos: ghostPos })) {
         ghostPos.y++;
     }
-    ghostPos.y--; // Step back up
-    
+    ghostPos.y--; 
     ctx.globalAlpha = 0.2;
     drawMatrix(ctx, playerMatrix, ghostPos);
     ctx.globalAlpha = 1.0;
 }
 
-// Draw Local Player
 function draw() {
-    context.fillStyle = '#020617';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
+    context.fillStyle = '#020617'; context.fillRect(0, 0, canvas.width, canvas.height);
     drawMatrix(context, player.arena, {x:0, y:0});
     drawGhost(context, player.arena, player.matrix, player.pos);
     drawMatrix(context, player.matrix, player.pos);
-    
     drawParticles(context);
 }
 
-// Draw Remote Opponent (NOW WITH GHOST & CONSISTENT STYLE)
 function drawRemote() {
-    remoteContext.fillStyle = '#020617';
-    remoteContext.fillRect(0, 0, remoteCanvas.width, remoteCanvas.height);
-    
+    remoteContext.fillStyle = '#020617'; remoteContext.fillRect(0, 0, remoteCanvas.width, remoteCanvas.height);
     drawMatrix(remoteContext, opponent.arena, {x:0, y:0});
-    
     if (opponent.matrix) {
-        // Show opponent ghost so it matches local player design
         drawGhost(remoteContext, opponent.arena, opponent.matrix, opponent.pos);
         drawMatrix(remoteContext, opponent.matrix, opponent.pos);
     }
 }
 
 function drawPreview() {
-    // Next
-    nextContext.fillStyle = '#111827';
-    nextContext.fillRect(0,0, nextCanvas.width, nextCanvas.height);
-    if(player.next) {
-        const offX = (4 - player.next[0].length)/2;
-        const offY = (4 - player.next.length)/2;
+    // 1. Draw Next Queue (5 Pieces)
+    nextContext.fillStyle = 'rgba(0,0,0,0.0)';
+    nextContext.clearRect(0, 0, 100, 420); 
+    
+    // We need to implement the queue system in VS logic just like singleplayer
+    // If player.nextQueue doesn't exist yet, we just draw the single 'next' piece
+    if (player.nextQueue && player.nextQueue.length > 0) {
+        player.nextQueue.forEach((piece, index) => {
+            const offsetX = (5 - piece[0].length) / 2; 
+            const offsetY = 1 + (index * 4); 
+            drawMatrix(nextContext, piece, {x: offsetX, y: offsetY});
+        });
+    } else if(player.next) {
+        // Fallback if queue logic isn't fully added yet
+        const offX = (5 - player.next[0].length)/2;
+        const offY = 1;
         drawMatrix(nextContext, player.next, {x:offX, y:offY});
     }
 
-    // Hold
-    holdContext.fillStyle = '#111827';
-    holdContext.fillRect(0,0, holdCanvas.width, holdCanvas.height);
+    // 2. Draw Hold
+    holdContext.fillStyle = 'rgba(0,0,0,0.0)';
+    holdContext.clearRect(0, 0, 100, 80);
     if(player.hold) {
-        const offX = (4 - player.hold[0].length)/2;
+        const offX = (5 - player.hold[0].length)/2; 
         const offY = (4 - player.hold.length)/2;
         if(!canHold) holdContext.globalAlpha = 0.5;
         drawMatrix(holdContext, player.hold, {x:offX, y:offY});
@@ -252,32 +327,23 @@ socket.on('opponent_update', (state) => {
 });
 
 socket.on('receive_garbage', (count) => {
-    // Add grey lines at bottom with randomized holes
     for(let i=0; i<count; i++){
-        const row = new Array(12).fill(8); // 8 = Grey
-        row[Math.floor(Math.random()*12)] = 0; // One random hole for digging
-        player.arena.push(row);
-        player.arena.shift(); // Push top off
+        const row = new Array(12).fill(8); 
+        row[Math.floor(Math.random()*12)] = 0; 
+        player.arena.push(row); player.arena.shift(); 
     }
-    // Shake effect
     canvas.style.transform = "translateX(5px)";
     setTimeout(() => canvas.style.transform = "none", 50);
     emitState();
 });
 
-socket.on('opponent_game_over', () => {
-    endGame(true); // You Win
-});
+socket.on('opponent_game_over', () => { endGame(true); });
 
 function emitState() {
     if (!gameActive) return;
     socket.emit('update_state', {
         room: roomID,
-        state: {
-            arena: player.arena,
-            matrix: player.matrix,
-            pos: player.pos
-        }
+        state: { arena: player.arena, matrix: player.matrix, pos: player.pos }
     });
 }
 
@@ -301,59 +367,37 @@ function startCountdown() {
 }
 
 function startGame() {
-    // Reset Player
     player.arena.forEach(row => row.fill(0));
-    player.score = 0;
-    player.hold = null;
-    canHold = true;
-    piecesBag = [];
-    particles = [];
-    
-    // RESET DIFFICULTY
-    dropInterval = 1000;
-    difficultyTimer = 0;
-    
+    player.score = 0; player.hold = null; canHold = true; piecesBag = []; particles = [];
+    dropInterval = 1000; difficultyTimer = 0;
     player.next = getPieceFromBag();
     playerReset();
-    
     gameActive = true;
     update();
 }
 
 function playerReset() {
-    player.matrix = player.next;
-    player.next = getPieceFromBag();
-    player.pos.y = 0;
-    player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-    
+    player.matrix = player.next; player.next = getPieceFromBag();
+    player.pos.y = 0; player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+    player.rotateIndex = 0; // CHANGED: Reset rotation state
     drawPreview();
-    
-    if (collide(player.arena, player)) {
-        endGame(false); // Lose
-    }
+    if (collide(player.arena, player)) endGame(false);
     emitState();
 }
 
 function endGame(win) {
     gameActive = false;
-
-    if(!win) {
-        socket.emit('player_game_over', { room: roomID }); 
-    }
-    
+    if(!win) socket.emit('player_game_over', { room: roomID }); 
     resultTitle.innerText = win ? "YOU WIN!" : "YOU LOSE";
     resultTitle.className = win ? "text-6xl font-bold mb-4 text-green-500" : "text-6xl font-bold mb-4 text-red-500";
     resultScreen.style.display = 'flex';
 }
 
 function collide(arena, player) {
-    const m = player.matrix;
-    const o = player.pos;
+    const m = player.matrix; const o = player.pos;
     for (let y = 0; y < m.length; ++y) {
         for (let x = 0; x < m[y].length; ++x) {
-            if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
-                return true;
-            }
+            if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
         }
     }
     return false;
@@ -369,107 +413,90 @@ function rotate(matrix, dir) {
     else matrix.reverse();
 }
 
+// CHANGED: SRS Rotation Logic with Wall Kicks
 function playerRotate(dir) {
-    const pos = player.pos.x;
-    let offset = 1;
+    let type = 'T'; 
+    if (player.matrix.length === 4) type = 'I';
+    else if (player.matrix.length === 2) type = 'O'; 
+    
+    if (type === 'O') return; 
+    
+    const oldRot = player.rotateIndex;
+    const newRot = (oldRot + dir + 4) % 4;
+    const oldX = player.pos.x;
+    const oldY = player.pos.y;
+    
     rotate(player.matrix, dir);
-    while (collide(player.arena, player)) {
-        player.pos.x += offset;
-        offset = -(offset + (offset > 0 ? 1 : -1));
-        if (offset > player.matrix[0].length) {
-            rotate(player.matrix, -dir);
-            player.pos.x = pos;
+    
+    let kicks;
+    if (type === 'I') kicks = (dir > 0) ? I_KICKS[oldRot] : I_KICKS_CCW[oldRot];
+    else kicks = (dir > 0) ? JLSTZ_KICKS[oldRot] : JLSTZ_KICKS_CCW[oldRot];
+    
+    for (let i = 0; i < kicks.length; i++) {
+        const offset = kicks[i];
+        player.pos.x = oldX + offset[0];
+        player.pos.y = oldY - offset[1]; 
+        
+        if (!collide(player.arena, player)) {
+            player.rotateIndex = newRot;
+            emitState(); // Important for Multiplayer sync!
             return;
         }
     }
-    emitState();
+    
+    // Failed
+    rotate(player.matrix, -dir);
+    player.pos.x = oldX;
+    player.pos.y = oldY;
 }
 
 function playerHold() {
     if(!canHold) return;
     if(!player.hold) {
-        player.hold = player.matrix;
-        player.matrix = player.next;
-        player.next = getPieceFromBag();
+        player.hold = player.matrix; player.matrix = player.next; player.next = getPieceFromBag();
     } else {
-        const temp = player.matrix;
-        player.matrix = player.hold;
-        player.hold = temp;
+        const temp = player.matrix; player.matrix = player.hold; player.hold = temp;
     }
-    player.pos.y = 0;
-    player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-    canHold = false;
-    drawPreview();
-    emitState();
+    player.pos.y = 0; player.pos.x = (player.arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+    player.rotateIndex = 0; // CHANGED: Reset rotation on hold
+    canHold = false; drawPreview(); emitState();
 }
 
 function arenaSweep() {
     let rowCount = 0;
     outer: for (let y = player.arena.length - 1; y > 0; --y) {
-        for (let x = 0; x < player.arena[y].length; ++x) {
-            if (player.arena[y][x] === 0) continue outer;
-        }
-        
-        // Particles
-        for(let x=0; x<player.arena[y].length; x++) {
-            createParticles(x, y, colors[player.arena[y][x]]);
-        }
-
-        const row = player.arena.splice(y, 1)[0].fill(0);
-        player.arena.unshift(row);
-        ++y;
-        rowCount++;
+        for (let x = 0; x < player.arena[y].length; ++x) if (player.arena[y][x] === 0) continue outer;
+        for(let x=0; x<player.arena[y].length; x++) createParticles(x, y, colors[player.arena[y][x]]);
+        const row = player.arena.splice(y, 1)[0].fill(0); player.arena.unshift(row); ++y; rowCount++;
     }
-
     if (rowCount > 0) {
         playSound('clear');
-        player.score += rowCount * 100;
-        scoreElement.innerText = player.score;
-        
-        // GARBAGE ATTACK logic
-        if (rowCount > 1) {
-            socket.emit('send_garbage', { room: roomID, lines: rowCount - 1 });
-        }
+        player.score += rowCount * 100; scoreElement.innerText = player.score;
+        if (rowCount > 1) socket.emit('send_garbage', { room: roomID, lines: rowCount - 1 });
     }
 }
 
 function merge(arena, player) {
     player.matrix.forEach((row, y) => {
         row.forEach((value, x) => {
-            if (value !== 0) {
-                arena[y + player.pos.y][x + player.pos.x] = value;
-            }
+            if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value;
         });
     });
-    playSound('drop');
-    canHold = true;
-    drawPreview();
-    emitState();
+    playSound('drop'); canHold = true; drawPreview(); emitState();
 }
 
 function playerDrop() {
     player.pos.y++;
     if (collide(player.arena, player)) {
-        player.pos.y--;
-        merge(player.arena, player);
-        playerReset();
-        arenaSweep();
-        emitState();
+        player.pos.y--; merge(player.arena, player); playerReset(); arenaSweep(); emitState();
     }
     dropCounter = 0;
-    emitState(); // Sync falling movement
+    emitState();
 }
 
 function playerHardDrop() {
-    while (!collide(player.arena, player)) {
-        player.pos.y++;
-    }
-    player.pos.y--;
-    merge(player.arena, player);
-    playerReset();
-    arenaSweep();
-    emitState();
-    dropCounter = 0;
+    while (!collide(player.arena, player)) player.pos.y++;
+    player.pos.y--; merge(player.arena, player); playerReset(); arenaSweep(); emitState(); dropCounter = 0;
 }
 
 function update(time = 0) {
@@ -478,53 +505,88 @@ function update(time = 0) {
     const deltaTime = time - lastTime;
     lastTime = time;
     
+    // --- INPUT LOGIC ---
+    const moveCommand = Input.update(deltaTime);
+
+    if (moveCommand === "INSTANT") {
+        let moved = false;
+        while (!collide(player.arena, { ...player, pos: { x: player.pos.x + Input.currentDir, y: player.pos.y } })) {
+            player.pos.x += Input.currentDir;
+            moved = true;
+        }
+        if (moved) emitState();
+    } 
+    else if (moveCommand !== 0) {
+        player.pos.x += moveCommand;
+        if (collide(player.arena, player)) {
+            player.pos.x -= moveCommand;
+        } else {
+            emitState();
+        }
+    }
+    
+    // Soft Drop
+    if (Input.keys.ArrowDown || Input.keys.KeyS) {
+        dropCounter += deltaTime * 20;
+    }
+    
+    // --- GRAVITY ---
     dropCounter += deltaTime;
     difficultyTimer += deltaTime;
 
-    // DIFFICULTY LEVEL
     if (difficultyTimer > difficultyInterval) {
-        difficultyTimer = 0;
-        dropInterval = dropInterval * 0.9; // 10% Faster
-        if (dropInterval < 100) dropInterval = 100; // Cap max speed
+        difficultyTimer = 0; dropInterval = dropInterval * 0.9;
+        if (dropInterval < 100) dropInterval = 100; 
     }
 
-    if (dropCounter > dropInterval) {
-        playerDrop();
-    }
+    if (dropCounter > dropInterval) playerDrop();
     
     updateParticles();
     draw(); 
-    // Note: drawRemote is called via socket event
-
     requestAnimationFrame(update);
 }
 
 // --- CONTROLS ---
 document.addEventListener('keydown', event => {
     if (!gameActive) return;
-
     if([32, 37, 38, 39, 40].indexOf(event.keyCode) > -1) event.preventDefault();
 
-    if (event.keyCode === 37 || event.keyCode === 65) { // Left
-        player.pos.x--;
-        if (collide(player.arena, player)) player.pos.x++;
-        emitState();
-    } 
-    else if (event.keyCode === 39 || event.keyCode === 68) { // Right
-        player.pos.x++;
-        if (collide(player.arena, player)) player.pos.x--;
-        emitState();
-    } 
-    else if (event.keyCode === 40 || event.keyCode === 83) { // Down
-        playerDrop();
-    } 
-    else if (event.keyCode === 38 || event.keyCode === 87) { // Up (Rotate)
-        playerRotate(1);
+    // 1. UPDATE STATE
+    if (Input.keys.hasOwnProperty(event.code)) {
+        Input.keys[event.code] = true;
+        
+        // PRIORITY
+        if (event.code === 'ArrowLeft' || event.code === 'KeyA') Input.lastKeyPressed = 'left';
+        if (event.code === 'ArrowRight' || event.code === 'KeyD') Input.lastKeyPressed = 'right';
     }
-    else if (event.keyCode === 32) { // Space (Hard Drop)
-        playerHardDrop();
+
+    // 2. INSTANT ACTIONS
+    switch(event.code) {
+        case 'ArrowUp':
+        case 'KeyW':
+            playerRotate(1);
+            break;
+        case 'Space':
+            playerHardDrop();
+            break;
+        case 'KeyC':
+            playerHold();
+            break;
     }
-    else if (event.keyCode === 67) { // C (Hold)
-        playerHold();
+});
+
+document.addEventListener('keyup', event => {
+    if (Input.keys.hasOwnProperty(event.code)) {
+        Input.keys[event.code] = false;
+        
+        // PRIORITY CLEANUP
+        if ((event.code === 'ArrowLeft' || event.code === 'KeyA') && Input.lastKeyPressed === 'left') {
+            if (Input.keys.ArrowRight || Input.keys.KeyD) Input.lastKeyPressed = 'right';
+            else Input.lastKeyPressed = null;
+        }
+        if ((event.code === 'ArrowRight' || event.code === 'KeyD') && Input.lastKeyPressed === 'right') {
+            if (Input.keys.ArrowLeft || Input.keys.KeyA) Input.lastKeyPressed = 'left';
+            else Input.lastKeyPressed = null;
+        }
     }
 });

@@ -6,106 +6,252 @@
     <title>VSTetris</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Layer 1: The Background GIF */
-        #bg-video {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -2;
-            background-image: url('https://media1.tenor.com/m/Ul0s5b88xPMAAAAC/sakuma.gif');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+        body {
+            background-color: #020617;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
         }
-
-        /* Layer 2: The Dark Tint */
-        #bg-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            background-color: rgba(0, 0, 0, 0.6); /* Slightly lighter tint for menu */
+        .glass-modal {
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }
-
-        /* Button Animations */
         .btn-menu {
             transition: all 0.2s;
-        }
-        .btn-menu:hover {
-            transform: scale(1.05);
+            text-transform: uppercase;
             letter-spacing: 0.1em;
         }
+        .btn-menu:hover {
+            transform: translateX(10px);
+            text-shadow: 0 0 10px currentColor;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     </style>
 </head>
-<body class="text-white font-mono min-h-screen flex flex-col items-center justify-center overflow-hidden">
+<body class="h-screen w-screen flex flex-col items-center justify-center relative">
 
-    <div id="bg-video"></div>
-    <div id="bg-overlay"></div>
+    <h1 class="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-12 drop-shadow-2xl italic">
+        VSTETRIS
+    </h1>
 
-    <div class="relative z-10 text-center">
-        
-        <h1 class="text-8xl font-black mb-12 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 drop-shadow-lg" style="text-shadow: 0 0 30px rgba(168, 85, 247, 0.5);">
-            TETRIS
-        </h1>
-
-        <div class="flex flex-col gap-6 w-80 mx-auto">
-            
-            <a href="public/singleplayer.html" class="btn-menu block w-full py-4 rounded-xl bg-gray-800/80 hover:bg-blue-600 border-2 border-transparent hover:border-blue-400 backdrop-blur-sm shadow-2xl font-bold text-xl group relative overflow-hidden">
-                <span class="relative z-10">SINGLEPLAYER</span>
-                <div class="absolute inset-0 bg-blue-500/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-            </a>
-
-            <a href="public/vs.html" class="btn-menu w-full py-4 rounded-xl bg-gray-800/80 hover:bg-red-600 border-2 border-transparent hover:border-red-400 backdrop-blur-sm shadow-2xl font-bold text-xl group relative overflow-hidden">
-                <span class="relative z-10">VS PLAYER</span>
-                <div class="absolute inset-0 bg-red-500/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-            </a>
-
-            <button onclick="quitGame()" class="btn-menu w-full py-4 rounded-xl bg-gray-800/80 hover:bg-gray-600 border-2 border-transparent hover:border-gray-400 backdrop-blur-sm shadow-2xl font-bold text-xl group relative overflow-hidden">
-                <span class="relative z-10">QUIT</span>
-                <div class="absolute inset-0 bg-gray-500/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-            </button>
-        </div>
-
-        <p class="mt-12 text-gray-400 text-sm">v1.0.0 &copy; 2024</p>
+    <div class="flex flex-col gap-6 w-64">
+        <button onclick="handleGameAction('single')" class="btn-menu text-left text-2xl font-bold hover:text-blue-400 border-l-4 border-transparent hover:border-blue-400 pl-4 py-2">
+            Single Player
+        </button>
+        <button onclick="window.location.href='public/vs.html'" class="btn-menu text-left text-2xl font-bold hover:text-red-500 border-l-4 border-transparent hover:border-red-500 pl-4 py-2">
+            VS Mode
+        </button>
+        <button onclick="handleGameAction('leaderboard')" class="btn-menu text-left text-2xl font-bold hover:text-yellow-400 border-l-4 border-transparent hover:border-yellow-400 pl-4 py-2">
+            Leaderboards
+        </button>
     </div>
 
-    <script>
-        // Sound Effect for Buttons (Simple Beep)
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playHoverSound() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.1);
-        }
+    <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div class="glass-modal p-8 rounded-xl w-96 flex flex-col gap-4">
+            <h2 class="text-2xl font-bold text-center mb-2">Log In</h2>
+            <input id="email" type="email" placeholder="Email" class="bg-gray-800 border border-gray-700 p-3 rounded text-white focus:outline-none focus:border-blue-500">
+            <input id="password" type="password" placeholder="Password" class="bg-gray-800 border border-gray-700 p-3 rounded text-white focus:outline-none focus:border-blue-500">
+            <p id="auth-error" class="text-red-500 text-sm text-center hidden"></p>
 
-        // Attach sound to all buttons
-        document.querySelectorAll('.btn-menu').forEach(btn => {
-            btn.addEventListener('mouseenter', playHoverSound);
+            <button onclick="loginUser()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition shadow-lg mt-2">LOGIN</button>
+            <div class="flex items-center justify-between text-sm text-gray-400">
+                <span>New player?</span>
+                <button onclick="registerUser()" class="text-blue-400 hover:underline">Create Account</button>
+            </div>
+            <button onclick="closeModal('auth-modal')" class="text-gray-500 hover:text-white mt-4 text-xs text-center">Cancel</button>
+        </div>
+    </div>
+
+    <div id="nickname-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+        <div class="glass-modal p-8 rounded-xl w-80 flex flex-col gap-4 text-center">
+            <h2 class="text-xl font-bold text-green-400">ACCESS GRANTED</h2>
+            <p class="text-gray-300 text-sm">Enter your IGN</p>
+            <input id="nickname-input" type="text" maxlength="7" placeholder="MAX 7 CHARS" class="bg-gray-800 border border-gray-700 p-3 rounded text-center text-white text-xl uppercase tracking-widest focus:outline-none focus:border-green-500">
+            <button onclick="saveNickname()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded transition shadow-lg">CONFIRM</button>
+        </div>
+    </div>
+
+    <div id="leaderboard-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div class="glass-modal p-6 rounded-xl w-[500px] h-[600px] flex flex-col">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+                <h2 class="text-3xl font-black italic text-yellow-400">TOP PLAYERS</h2>
+                <button onclick="closeModal('leaderboard-modal')" class="text-gray-400 hover:text-white font-bold text-xl">&times;</button>
+            </div>
+            <div class="flex justify-between text-gray-500 text-sm mb-2 px-4">
+                <span>RANK</span>
+                <span>IGN</span>
+                <span>SCORE</span>
+            </div>
+            <div id="leaderboard-list" class="flex-col gap-2 overflow-y-auto flex-1 pr-2"></div>
+            <div class="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center text-blue-400 px-4">
+                <span class="text-sm">YOUR BEST</span>
+                <span id="my-best-score" class="font-bold text-xl">0</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        // 1. ADDED 'setPersistence' and 'browserSessionPersistence' to imports
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // YOUR CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyDjJ22zhimjjerdWBilbYt0sVw5HhybX70",
+            authDomain: "tetrisvs.firebaseapp.com",
+            projectId: "tetrisvs",
+            storageBucket: "tetrisvs.firebasestorage.app",
+            messagingSenderId: "391922474412",
+            appId: "1:391922474412:web:7ba454bb8ac7d0e75a6e09",
+            measurementId: "G-NQ6J6V7V8Z"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let pendingAction = null;
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                closeModal('auth-modal');
+                // Check for nickname
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if (!userDoc.exists() || !userDoc.data().nickname) {
+                    document.getElementById('nickname-modal').classList.remove('hidden');
+                } else {
+                    if (pendingAction === 'single') window.location.href = 'public/singleplayer.html';
+                    if (pendingAction === 'leaderboard') showLeaderboard();
+                    pendingAction = null;
+                }
+            } else {
+                currentUser = null;
+            }
         });
 
-        // Quit Logic
-        function quitGame() {
-            // Note: Modern browsers block window.close() unless the script opened the window.
-            // As a fallback, we redirect to a blank page or google.
-            if(confirm("Are you sure you want to quit?")) {
-                window.close(); // Tries to close tab
-                window.location.href = "about:blank"; // Fallback
+        // Expose functions to window
+        window.handleGameAction = (action) => {
+            if (!currentUser) {
+                pendingAction = action;
+                document.getElementById('auth-modal').classList.remove('hidden');
+            } else {
+                if (action === 'single') window.location.href = 'public/singleplayer.html';
+                if (action === 'leaderboard') showLeaderboard();
             }
-        }
+        };
+
+        window.loginUser = async () => {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            const errorText = document.getElementById('auth-error');
+            
+            try {
+                // 2. SET PERSISTENCE TO SESSION BEFORE LOGGING IN
+                await setPersistence(auth, browserSessionPersistence);
+                
+                await signInWithEmailAndPassword(auth, email, pass);
+                errorText.classList.add('hidden');
+            } catch (error) {
+                errorText.innerText = error.message;
+                errorText.classList.remove('hidden');
+            }
+        };
+
+        window.registerUser = async () => {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            const errorText = document.getElementById('auth-error');
+            
+            try {
+                // 3. SET PERSISTENCE TO SESSION BEFORE REGISTERING
+                await setPersistence(auth, browserSessionPersistence);
+                
+                await createUserWithEmailAndPassword(auth, email, pass);
+                errorText.classList.add('hidden');
+            } catch (error) {
+                errorText.innerText = error.message;
+                errorText.classList.remove('hidden');
+            }
+        };
+
+        window.saveNickname = async () => {
+            const input = document.getElementById('nickname-input');
+            const nickname = input.value.trim().toUpperCase();
+
+            if (nickname.length < 3 || nickname.length > 7) {
+                alert("Nickname must be between 3-7 characters.");
+                return;
+            }
+
+            try {
+                await setDoc(doc(db, "users", currentUser.uid), {
+                    nickname: nickname,
+                    email: currentUser.email,
+                    highScore: 0
+                }, { merge: true });
+
+                document.getElementById('nickname-modal').classList.add('hidden');
+                
+                if (pendingAction === 'single') window.location.href = 'public/singleplayer.html';
+                if (pendingAction === 'leaderboard') showLeaderboard();
+                pendingAction = null;
+
+            } catch (error) {
+                console.error("Error saving nickname:", error);
+            }
+        };
+
+        window.showLeaderboard = async () => {
+            document.getElementById('leaderboard-modal').classList.remove('hidden');
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = '<div class="text-center mt-10 animate-pulse text-yellow-500">Retrieving Data...</div>';
+
+            try {
+                const q = query(collection(db, "users"), orderBy("highScore", "desc"), limit(10));
+                const querySnapshot = await getDocs(q);
+                
+                list.innerHTML = ''; 
+                let rank = 1;
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const isMe = doc.id === currentUser.uid;
+                    const row = document.createElement('div');
+                    row.className = `flex justify-between items-center p-4 rounded-lg ${isMe ? 'bg-blue-900/50 border border-blue-500' : 'bg-gray-800/50 border border-transparent'}`;
+                    row.innerHTML = `
+                        <div class="flex items-center gap-4">
+                            <span class="font-black text-2xl w-8 ${rank === 1 ? 'text-yellow-400' : (rank===2 ? 'text-gray-300' : (rank===3 ? 'text-orange-500' : 'text-gray-600'))}">${rank}</span>
+                            <span class="font-bold tracking-widest ${isMe ? 'text-white' : 'text-gray-300'}">${data.nickname || 'UNK'}</span>
+                        </div>
+                        <span class="font-mono text-xl text-green-400 font-bold">${data.highScore || 0}</span>
+                    `;
+                    list.appendChild(row);
+                    if(isMe) document.getElementById('my-best-score').innerText = data.highScore || 0;
+                    rank++;
+                });
+
+                const myDoc = await getDoc(doc(db, "users", currentUser.uid));
+                if (myDoc.exists()) document.getElementById('my-best-score').innerText = myDoc.data().highScore || 0;
+
+            } catch (error) {
+                console.error(error);
+                list.innerHTML = '<div class="text-red-500 text-center">Failed to load scores.</div>';
+            }
+        };
+
+        window.closeModal = (id) => {
+            document.getElementById(id).classList.add('hidden');
+            if (id === 'auth-modal') pendingAction = null;
+        };
     </script>
 </body>
 </html>
