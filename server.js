@@ -7,41 +7,32 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors: {
-        origin: "*", 
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// 1. Serve static files (css, js, images) from the 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 2. FIX: Serve index.html from 'public' when visiting the root '/'
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html')); 
 });
 
-// --- SOCKET IO LOGIC ---
+app.get('/vs', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'vs.html'));
+});
+
 let waitingPlayer = null;
 
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
-
     socket.on('join_queue', () => {
-        if (waitingPlayer) {
-            // Match found!
-            const roomID = waitingPlayer.id + '#' + socket.id;
+        if (waitingPlayer && waitingPlayer.id !== socket.id) {
+            const roomID = `room_${waitingPlayer.id}_${socket.id}`;
             const opponent = waitingPlayer;
             waitingPlayer = null;
-
             socket.join(roomID);
             opponent.join(roomID);
-
             io.to(roomID).emit('match_found', roomID);
-            console.log(`Match started in room: ${roomID}`);
         } else {
             waitingPlayer = socket;
-            console.log('User waiting for match...');
         }
     });
 
@@ -57,15 +48,15 @@ io.on('connection', (socket) => {
         socket.to(data.room).emit('opponent_game_over');
     });
 
+    // Handle 2-minute timer expiration
+    socket.on('player_time_up', (data) => {
+        socket.to(data.room).emit('time_expired_sync', data.score);
+    });
+
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        if (waitingPlayer === socket) {
-            waitingPlayer = null;
-        }
+        if (waitingPlayer === socket) waitingPlayer = null;
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));

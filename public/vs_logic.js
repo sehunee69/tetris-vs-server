@@ -1,6 +1,6 @@
 const socket = io('https://vstetris.onrender.com');
 
-// --- AUDIO SYSTEM ---
+// AUDIO SYSTEM 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -22,7 +22,7 @@ function playSound(type) {
     }
 }
 
-// --- SETUP CANVAS ---
+// SETUP CANVAS
 const canvas = document.getElementById('local');
 const context = canvas.getContext('2d');
 const remoteCanvas = document.getElementById('remote');
@@ -39,6 +39,11 @@ const countdownText = document.getElementById('countdown-text');
 const resultScreen = document.getElementById('result-screen');
 const resultTitle = document.getElementById('result-title');
 const scoreElement = document.getElementById('score');
+let gameStartTime = 0;
+const timerElement = document.getElementById('timer');
+const comboElement = document.getElementById('combo-display');
+const MATCH_DURATION = 120000; 
+let opponentScore = 0; 
 
 // --- MODERN INPUT CONTROLLER ---
 const Input = {
@@ -47,10 +52,11 @@ const Input = {
         KeyA: false, KeyD: false, KeyS: false
     },
     
-    DAS: 100,  
-    ARR: 0,    
+    DAS: 170,  
+    ARR: 33,    
     
     timer: 0,
+    arrTimer: 0,
     currentDir: 0,
     lastKeyPressed: null, 
     
@@ -71,13 +77,17 @@ const Input = {
         if (requestedDir !== this.currentDir) {
             this.currentDir = requestedDir;
             this.timer = 0;
+            this.arrTimer = 0;
             return requestedDir; 
         } 
         else if (requestedDir !== 0) {
             this.timer += deltaTime;
             if (this.timer >= this.DAS) {
-                if (this.ARR === 0) return "INSTANT"; 
-                return requestedDir;
+                this.arrTimer += deltaTime;
+                if (this.arrTimer >= this.ARR) {
+                    this.arrTimer = 0;
+                    return requestedDir;
+                }
             }
         }
         return 0; 
@@ -118,6 +128,7 @@ const player = {
     nextQueue: [],
     hold: null,
     score: 0,
+    combo: -1,
     arena: createMatrix(12, 24),
     rotateIndex: 0 
 };
@@ -185,6 +196,40 @@ function updateNextQueue() {
     while (player.nextQueue.length < 5) {
         player.nextQueue.push(getPieceFromBag());
     }
+}
+
+function updateTimer() {
+    if (!gameActive) return;
+    const elapsed = Date.now() - gameStartTime;
+    const remaining = Math.max(0, MATCH_DURATION - elapsed);
+    
+    const seconds = Math.floor((remaining / 1000) % 60);
+    const minutes = Math.floor(remaining / 60000);
+    
+    // Update the UI div
+    timerElement.innerText = 
+        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+    // TIME EXPIRED
+    if (remaining <= 0) {
+        handleTimeUp();
+    }
+}
+
+// Handle the end of the 2 minutes
+function handleTimeUp() {
+    gameActive = false;
+    
+    // Determine winner by highest score
+    const win = player.score >= opponentScore;
+    
+    // Notify server to sync the end for both players
+    socket.emit('player_time_up', { 
+        room: roomID, 
+        score: player.score 
+    });
+    
+    endGame(win, "TIME'S UP!");
 }
 
 // --- VISUALS ---
@@ -287,6 +332,7 @@ socket.on('opponent_update', (state) => {
     opponent.arena = state.arena;
     opponent.matrix = state.matrix;
     opponent.pos = state.pos;
+    opponentScore = state.score || 0;
     drawRemote();
 });
 
@@ -301,13 +347,18 @@ socket.on('receive_garbage', (count) => {
     emitState();
 });
 
+socket.on('time_expired_sync', (finalOpponentScore) => {
+    opponentScore = finalOpponentScore;
+    if (gameActive) handleTimeUp(); 
+});
+
 socket.on('opponent_game_over', () => { endGame(true); });
 
 function emitState() {
     if (!gameActive) return;
     socket.emit('update_state', {
         room: roomID,
-        state: { arena: player.arena, matrix: player.matrix, pos: player.pos }
+        state: { arena: player.arena, matrix: player.matrix, pos: player.pos, score: player.score }
     });
 }
 
@@ -335,6 +386,8 @@ function startGame() {
     dropInterval = 1000; difficultyTimer = 0;
     updateNextQueue(); 
     playerReset();
+    player.combo = -1;
+    gameStartTime = Date.now();
     gameActive = true;
     update();
 }
@@ -439,16 +492,64 @@ function playerHold() {
 
 function arenaSweep() {
     let rowCount = 0;
-    outer: for (let y = player.arena.length - 1; y > 0; --y) {
-        for (let x = 0; x < player.arena[y].length; ++x) if (player.arena[y][x] === 0) continue outer;
-        for(let x=0; x<player.arena[y].length; x++) createParticles(x, y, colors[player.arena[y][x]]);
-        const row = player.arena.splice(y, 1)[0].fill(0); player.arena.unshift(row); ++y; rowCount++;
+    
+    // 1. Check for completed lines
+    outer: for (let y = player.arena.length - 1; y >= 0; --y) {
+        for (let x = 0; x < player.arena[y].length; ++x) {
+            if (player.arena[y][x] === 0) continue outer;
+        }
+
+        // Particle effect
+        for(let x = 0; x < player.arena[y].length; x++) {
+            createParticles(x, y, colors[player.arena[y][x]]);
+        }
+
+        const row = player.arena.splice(y, 1)[0].fill(0);
+        player.arena.unshift(row);
+        ++y; 
+        rowCount++;
     }
+
+    // 2. Combo & Garbage Logic
     if (rowCount > 0) {
         playSound('clear');
-        player.score += rowCount * 100; scoreElement.innerText = player.score;
-        if (rowCount > 1) socket.emit('send_garbage', { room: roomID, lines: rowCount - 1 });
+        player.combo++; 
+        
+        let garbageToSend = 0;
+        if (rowCount === 2) garbageToSend = 1;
+        else if (rowCount === 3) garbageToSend = 2;
+        else if (rowCount === 4) garbageToSend = 4;
+
+        // Facebook scaling: 1-2 (+1), 3-4 (+2), 5-6 (+3)
+        if (player.combo > 0) {
+            garbageToSend += Math.floor((player.combo + 1) / 2);
+            showComboUI(player.combo);
+        }
+
+        player.score += (rowCount * 100) + (player.combo * 50);
+        scoreElement.innerText = player.score;
+
+        if (garbageToSend > 0) {
+            socket.emit('send_garbage', { room: roomID, lines: garbageToSend });
+        }
+    } else {
+        player.combo = -1; // Reset combo if piece doesn't clear anything
+        if (comboElement) comboElement.style.opacity = "0";
     }
+}
+
+// --- COMBO UI ANIMATION ---
+function showComboUI(count) {
+    if (!comboElement) return;
+    const span = comboElement.querySelector('span');
+    span.innerText = `${count} COMBO`;
+    
+    comboElement.style.opacity = "1";
+    // Quick pop animation
+    comboElement.style.transform = "scale(1.4)";
+    setTimeout(() => {
+        comboElement.style.transform = "scale(1)";
+    }, 100);
 }
 
 function merge(arena, player) {
@@ -478,6 +579,7 @@ function playerHardDrop() {
 
 function update(time = 0) {
     if (!gameActive) return;
+    updateTimer();
 
     const deltaTime = time - lastTime;
     lastTime = time;
@@ -485,18 +587,7 @@ function update(time = 0) {
     // --- INPUT LOGIC ---
     const moveCommand = Input.update(deltaTime);
 
-    if (moveCommand === "INSTANT") {
-        let moved = false;
-        while (!collide(player.arena, { ...player, pos: { x: player.pos.x + Input.currentDir, y: player.pos.y } })) {
-            player.pos.x += Input.currentDir;
-            moved = true;
-        }
-        if (moved) {
-            lockTimer = 0; // Reset on move
-            emitState();
-        }
-    } 
-    else if (moveCommand !== 0) {
+    if (moveCommand !== 0) {
         player.pos.x += moveCommand;
         if (collide(player.arena, player)) {
             player.pos.x -= moveCommand;

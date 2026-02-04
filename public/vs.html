@@ -89,10 +89,22 @@
             </div>
         </div>
 
-        <div class="flex flex-col items-center justify-center opacity-50">
-            <div class="h-32 w-1 bg-gray-600 rounded-full mb-4"></div>
-            <span class="text-6xl font-black italic text-gray-500">VS</span>
-            <div class="h-32 w-1 bg-gray-600 rounded-full mt-4"></div>
+        <div class="flex flex-col items-center justify-center min-w-[150px]">
+            <div class="mb-4 flex flex-col items-center">
+                <span class="text-gray-400 text-xs tracking-[0.3em] uppercase">Time</span>
+                <div id="timer" class="text-4xl font-black font-mono text-white drop-shadow-md">00:00</div>
+            </div>
+
+            <div class="h-20 w-1 bg-gray-600/30 rounded-full mb-4"></div>
+
+            <div class="relative flex flex-col items-center">
+                <span class="text-6xl font-black italic text-gray-500/50">VS</span>
+                <div id="combo-display" class="absolute -bottom-12 opacity-0 transition-all duration-200 transform -translate-x-0">
+                    <span class="text-3xl font-black text-yellow-400 italic whitespace-nowrap drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]"></span>
+                </div>
+            </div>
+
+            <div class="h-20 w-1 bg-gray-600/30 rounded-full mt-4"></div>
         </div>
 
         <div class="flex flex-col items-center gap-2 opacity-90 scale-90">
